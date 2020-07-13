@@ -1,0 +1,12 @@
+._*
+.DS_Store
+Thumbs.db
+vendor
+*.tmp
+tmp*
+__pycache__
+.vs*
+node_modules
+.user.ini
+*.bak
+*.png

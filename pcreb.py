@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 #!/usr/bin/python3
 import os
+import sys
 import datetime
 import time
 import cv2
 import random
+import signal
+import easygui
 # 注意：请确保手机或模拟器的真实分辨率为 1280 x 720
+# 更多说明请参阅 README.md
 # 先安装必备库
 # pip3 install opencv-python numpy pandas
 # 然后修改以下设置
@@ -40,7 +44,13 @@ def title(loginfo:"信息内容"):
 
 def f2s(f):
     """浮点转整数文本"""
-    return str(int(round(f,0)))+"%"
+    text = str(int(round(f,0)))
+    if len(text) == 1:
+        return "  "+text+"%"
+    elif len(text) == 2:
+        return " "+text+"%"
+    else:
+        return text+"%"
 
 def dimcom(a,b=0,se=5):
     """整数模糊比较"""
@@ -51,8 +61,8 @@ def dimcom(a,b=0,se=5):
 def wait3(istr=""):
     """等待3秒"""
     for w in range(0,3):
-        time.sleep(1)
         tlog(str(3-w) + " " + istr + "...")
+        time.sleep(1)
 
 def btnr(btni):
     """生成按钮点击位置"""
@@ -64,6 +74,57 @@ def btnr(btni):
     btny = random.randint(btnfy,btnty)
     return [btnx,btny]
 
+def screenshot(devicename,imgfile):
+    """获取屏幕截图"""
+    cmd = os.popen("adb -s \""+devicename+"\" exec-out screencap -p 2>&1 > \""+imgfile+"\"")
+    cmdreq = cmd.read()
+    if ("not found" in cmdreq) or ("offline" in cmdreq):
+        terr("错误：与设备的连接丢失，程序中止。")
+        tlog(cmdreq)
+        quit()
+    elif cmdreq != "":
+        terr("错误："+cmdreq)
+        quit()
+
+def tap(x,y,readonly):
+    """发送点击命令"""
+    if readonly == 1:
+        twarn("\a[只读模式] 战斗完毕，请手工开始战斗后按回车键继续：")
+        easygui.msgbox("战斗完毕！请手工开始战斗后，重新开始本程序。", title="PCR 战斗完毕",ok_button="退出")
+        quit()
+        return
+    elif readonly == 3:
+        return
+    cmd = os.popen("adb shell input tap "+str(x)+" "+str(y)+" 2>&1")
+    cmdreq = cmd.read()
+    if ("found" in cmdreq) or ("offline" in cmdreq):
+        terr("错误：与设备的连接丢失，程序中止。")
+        tlog(cmdreq)
+        quit()
+    elif cmdreq != "":
+        terr("错误："+cmdreq)
+        quit()
+
+def gameoveri():
+    global gameover
+    global gameover0
+    global gameover1
+    global gameover2
+    global gameover3
+    gameovera = gameover0+gameover1+gameover2+gameover3
+    tlog("本次已完成战斗: "+str(gameover)+" 。")
+    tlog("本次已记录评价: "+str(gameovera)+" 。")
+    tlog("★ ★ ★ 评价: "+str(gameover3)+" 。")
+    tlog("★ ★ ☆ 评价: "+str(gameover2)+" 。")
+    tlog("★ ☆ ☆ 评价: "+str(gameover1)+" 。")
+    tlog("☆ ☆ ☆ 评价: "+str(gameover0)+" 。")
+
+def exit(signum, frame):
+    tok("收到退出指令...")
+    gameoveri()
+    tok("程序退出。")
+    quit()
+
 t1 = [
     [0,"LOGO画面",24,392,255,255,255],
     [1,"Now Loading...",993,619,255,255,255],
@@ -72,7 +133,8 @@ t1 = [
     [4,"WIN!",378,252,66,158,123],
     [5,"获得道具",549,199,198,65,49],
     [6,"FAILED",503,107,74,113,189],
-    [7,"重试提示框",374,349,90,150,239]
+    [7,"重试提示框",374,349,90,150,239],
+    [8,"提示框",351,194,74,134,222]
 ]
 # wave
 t2 = [
@@ -97,6 +159,17 @@ t5 = [
     [649,462,273,63] #OK
 ]
 
+signal.signal(signal.SIGINT, exit)
+signal.signal(signal.SIGTERM, exit)
+readonly = 0
+if len(sys.argv) > 1:
+    if sys.argv[1] == "r":
+        readonly = 1
+gameover = 0
+gameover3 = 0
+gameover2 = 0
+gameover1 = 0
+gameover0 = 0
 cmd = os.popen('adb devices')
 cmdreq = cmd.read()
 cmdarr = cmdreq.split('\n')
@@ -138,14 +211,14 @@ else:
 seldevice = devicelist[deviceid-1]
 devicename = seldevice[0]
 tlog("已选择设备："+devicename)
-input("现在请开始战斗，战斗开始后按回车键继续：")
+# input("现在请开始战斗，战斗开始后按回车键继续：")
 tlog("按 Ctrl+C 中止，中止之前请勿操作设备")
 imgfile = tempdir + "pcrt.png"
 i = 0
 while True:
     i += 1
     tlog("识别序号：" + str(i))
-    os.popen("adb -s \""+devicename+"\" exec-out screencap -p > \""+imgfile+"\"")
+    screenshot(devicename,imgfile)
     time.sleep(refreshspeed)
     img = cv2.imread(imgfile, cv2.IMREAD_COLOR)
     for ei in range(0,10):
@@ -167,6 +240,12 @@ while True:
         tg = nt[5]
         tb = nt[6]
         b, g, r = img[y, x]
+        w = len(img[0])
+        h = len(img)
+        if w != 1280 or h != 720:
+            terr("错误：程序要求设备实际屏幕像素必须为 1280x720 才能使用。")
+            tlog("当前的屏幕尺寸为 "+str(w)+"x"+str(h)+" 。")
+            quit()
         if (dimcom(tr,r) and dimcom(tg,g) and dimcom(tb,b)):
             modeid = nt[0]
             tlog("当前状态（"+str(modeid)+"）："+tname)
@@ -193,7 +272,7 @@ while True:
                     b, g, r = img[y, x]
                     if (dimcom(tr,r) and dimcom(tg,g) and dimcom(tb,b)):
                         waveid = 3
-                tlog("wave: "+str(waveid)+"/3")
+                tlog("第 "+str(gameover+1)+" 次战斗中, Wave: "+str(waveid)+"/3")
                 break
         hpi = t3[0]
         yline = hpi[0]
@@ -230,30 +309,47 @@ while True:
         xarr = t4[1]
         star = 0
         wait3("正在获取战斗评价")
+        gameover += 1
         for x in xarr:
             b, g, r = img[y, x]
             if (dimcom(tr,r,50) and dimcom(tg,g,50) and dimcom(tb,b,50)):
                 star += 1
+        battleend = "第 "+str(gameover)+" 次战斗结束： "
         if star == 3:
-            tok("战斗结束： ★ ★ ★")
+            tok(battleend+"★ ★ ★")
+            gameover3 += 1
         elif star == 2:
-            twarn("战斗结束： ★ ★ ☆")
+            twarn(battleend+"★ ★ ☆")
+            gameover2 += 1
         elif star == 1:
-            twarn("战斗结束： ★ ☆ ☆")
+            twarn(battleend+"★ ☆ ☆")
+            gameover1 += 1
+        gameoveri()
         wait3("秒后自动点按「下一步」按钮")
         btnxy = btnr(t5[0])
-        os.popen("adb shell input tap "+str(btnxy[0])+" "+str(btnxy[1]))
+        tap(btnxy[0],btnxy[1],readonly)
         wait3("等待动画")
     elif (modeid == 5):
         wait3("秒后自动点按「再次挑战」按钮")
         btnxy = btnr(t5[1])
-        os.popen("adb shell input tap "+str(btnxy[0])+" "+str(btnxy[1]))
+        tap(btnxy[0],btnxy[1],readonly)
         wait3("等待动画")
     elif (modeid == 6):
+        gameover += 1
+        gameover0 += 1
+        twarn("第 "+str(gameover)+" 次战斗结束： ☆ ☆ ☆")
         twarn("警告：战斗败北，已自动停止")
+        gameoveri()
         quit()
     elif (modeid == 7):
         wait3("秒后自动点按「OK」按钮")
         btnxy = btnr(t5[2])
-        os.popen("adb shell input tap "+str(btnxy[0])+" "+str(btnxy[1]))
+        tap(btnxy[0],btnxy[1],readonly)
         wait3("等待动画")
+    elif (modeid == 8): #提示框
+        twarn("\a出现了一个提示框，请确认内容。")
+        if readonly == 1:
+            easygui.msgbox("出现了一个提示框，请确认内容。处理完毕后，重新开始本程序。", title="PCR 提示框",ok_button="退出")
+            quit()
+        else:
+            input("在处理完毕后，按回车键继续...")
