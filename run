@@ -1,1 +1,4 @@
-python3 pcreb.py
+#!/bin/bash
+adb kill-server
+adb server
+python3 pcreb.py --tempdir "~/" --refreshspeed 2 --waitingtime 3 --readonly 0

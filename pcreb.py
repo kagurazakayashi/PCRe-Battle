@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 #!/usr/bin/python3
+from sys import version_info
+if version_info.major != 3:
+    raise Exception("请使用 Python 3 来运行本脚本。（当前 Python 版本为 "+str(version_info.major)+" ）")
 import os
 import sys
 import datetime
@@ -8,15 +11,15 @@ import cv2
 import random
 import signal
 import easygui
+import getopt
 # 注意：请确保手机或模拟器的真实分辨率为 1280 x 720
+# 先安装必备库 pip3 install opencv-python numpy pandas easygui
 # 更多说明请参阅 README.md
-# 先安装必备库
-# pip3 install opencv-python numpy pandas
-# 然后修改以下设置
-# 1.设定临时工作文件夹，以路径符号 / 或 \ 结尾，建议设置为内存盘以减少硬盘磨损
-tempdir = "/Volumes/RamDisk/"
-# 2.刷新速度（秒）。太快会超过硬盘存取速度。内存盘建议1，其他建议3
-refreshspeed = 1
+tempdir = ""
+refreshspeed = 2
+waitingtime = 3
+readonly = 0
+prevmode = 0
 
 def tlog(loginfo:"信息内容",end='\n'):
     """输出前面带时间的信息"""
@@ -58,10 +61,10 @@ def dimcom(a,b=0,se=5):
         return True
     return False
 
-def wait3(istr=""):
+def wait3(waitingtime,istr=""):
     """等待3秒"""
-    for w in range(0,3):
-        tlog(str(3-w) + " " + istr + "...")
+    for w in range(0,waitingtime):
+        tlog(str(waitingtime-w) + " " + istr + "...")
         time.sleep(1)
 
 def btnr(btni):
@@ -134,7 +137,8 @@ t1 = [
     [5,"获得道具",549,199,198,65,49],
     [6,"FAILED",503,107,74,113,189],
     [7,"重试提示框",374,349,90,150,239],
-    [8,"提示框",351,194,74,134,222]
+    [8,"提示框",351,194,74,134,222],
+    [9,"BOSS结算",182,641,99,150,238]
 ]
 # wave
 t2 = [
@@ -156,12 +160,37 @@ t4 = [
 t5 = [
     [974,641,270,63], #下一步
     [778,624,211,60], #再次挑战
-    [649,462,273,63] #OK
+    [649,462,273,63], #OK
+    [942,643,271,62]
 ]
+# boss
+t6 = [
+    [629,97,255,223,115]
+]
+
+title("超异域公主焊接(国服)自动重新挑战工具 v1.1")
+tlog("正在启动...")
+try:
+    opts, args = getopt.getopt(sys.argv[1:],"r:t:s:w:",["readonly=","tempdir=","refreshspeed=","waitingtime="])
+except getopt.GetoptError:
+    terr("输入参数不正确，使用方法请参阅 README.md 。")
+    sys.exit(2)
+for opt, arg in opts:
+    if opt in ("-r", "--readonly"):
+        tlog("只读模式: "+arg)
+        readonly = int(arg)
+    elif opt in ("-t", "--tempdir"):
+        tlog("临时工作文件夹: "+arg)
+        tempdir = arg
+    elif opt in ("-s", "--refreshspeed"):
+        tlog("刷新速度: "+arg)
+        refreshspeed = int(arg)
+    elif opt in ("-w", "--waitingtime"):
+        tlog("等待时间: "+arg)
+        waitingtime = int(arg)
 
 signal.signal(signal.SIGINT, exit)
 signal.signal(signal.SIGTERM, exit)
-readonly = 0
 if len(sys.argv) > 1:
     if sys.argv[1] == "r":
         readonly = 1
@@ -173,7 +202,7 @@ gameover0 = 0
 cmd = os.popen('adb devices')
 cmdreq = cmd.read()
 cmdarr = cmdreq.split('\n')
-title("超异域公主焊接(国服)自动重新挑战工具")
+time.sleep(1)
 tlog("正在查找设备...")
 if (cmdarr[0] != "List of devices attached"):
     terr("错误：ADB 配置错误。")
@@ -250,9 +279,9 @@ while True:
             modeid = nt[0]
             tlog("当前状态（"+str(modeid)+"）："+tname)
             break
-    if (modeid == -1):
+    if modeid == -1:
         tlog("当前状态：未知")
-    elif (modeid == 3): #正在战斗
+    elif modeid == 3: #正在战斗
         for waveinfo in t2:
             x = waveinfo[1]
             y = waveinfo[2]
@@ -260,7 +289,7 @@ while True:
             tg = waveinfo[4]
             tb = waveinfo[5]
             b, g, r = img[y, x]
-            if (dimcom(tr,r,50) and dimcom(tg,g,50) and dimcom(tb,b,50)):
+            if (dimcom(tr,r) and dimcom(tg,g) and dimcom(tb,b)):
                 waveid = waveinfo[0]
                 if waveid == 1:
                     t22 = t2[2]
@@ -300,7 +329,7 @@ while True:
             chrid += 1
         tlog("血量: ① "+f2s(barhp[0])+"  ② "+f2s(barhp[1])+"  ③ "+f2s(barhp[2])+"  ④ "+f2s(barhp[3])+"  ⑤ "+f2s(barhp[4]))
         tlog("技能: ① "+f2s(barmp[0])+"  ② "+f2s(barmp[1])+"  ③ "+f2s(barmp[2])+"  ④ "+f2s(barmp[3])+"  ⑤ "+f2s(barmp[4]))
-    elif (modeid == 4): #WIN!
+    elif modeid == 4: #WIN!
         t4c = t4[0]
         y = t4c[0]
         tr = t4c[1]
@@ -308,7 +337,7 @@ while True:
         tb = t4c[3]
         xarr = t4[1]
         star = 0
-        wait3("正在获取战斗评价")
+        wait3(waitingtime,"正在获取战斗评价")
         gameover += 1
         for x in xarr:
             b, g, r = img[y, x]
@@ -325,31 +354,53 @@ while True:
             twarn(battleend+"★ ☆ ☆")
             gameover1 += 1
         gameoveri()
-        wait3("秒后自动点按「下一步」按钮")
+        wait3(waitingtime,"秒后自动点按「下一步」按钮")
         btnxy = btnr(t5[0])
         tap(btnxy[0],btnxy[1],readonly)
-        wait3("等待动画")
-    elif (modeid == 5):
-        wait3("秒后自动点按「再次挑战」按钮")
+        wait3(waitingtime,"等待动画")
+    elif modeid == 5:
+        wait3(waitingtime,"秒后自动点按「再次挑战」按钮")
         btnxy = btnr(t5[1])
         tap(btnxy[0],btnxy[1],readonly)
-        wait3("等待动画")
-    elif (modeid == 6):
+        wait3(waitingtime,"等待动画")
+    elif modeid == 6:
         gameover += 1
         gameover0 += 1
         twarn("第 "+str(gameover)+" 次战斗结束： ☆ ☆ ☆")
         twarn("警告：战斗败北，已自动停止")
         gameoveri()
         quit()
-    elif (modeid == 7):
-        wait3("秒后自动点按「OK」按钮")
+    elif modeid == 7:
+        wait3(waitingtime,"秒后自动点按「OK」按钮")
         btnxy = btnr(t5[2])
         tap(btnxy[0],btnxy[1],readonly)
-        wait3("等待动画")
-    elif (modeid == 8): #提示框
+        wait3(waitingtime,"等待动画")
+    elif modeid == 8: #提示框
         twarn("\a出现了一个提示框，请确认内容。")
         if readonly == 1:
             easygui.msgbox("出现了一个提示框，请确认内容。处理完毕后，重新开始本程序。", title="PCR 提示框",ok_button="退出")
             quit()
         else:
             input("在处理完毕后，按回车键继续...")
+    elif modeid == 9: #活动BOSS战
+        win = t6[0]
+        x = win[0]
+        y = win[1]
+        tr = win[2]
+        tg = win[3]
+        tb = win[4]
+        b, g, r = img[y, x]
+        gameover += 1
+        if dimcom(tr,r) and dimcom(tg,g) and dimcom(tb,b):
+            gameover3 += 1
+            tok("第 "+str(gameover)+" 次战斗结束： BOSS战： 成功。")
+            wait3(waitingtime,"秒后自动点按「下一步」按钮")
+            btnxy = btnr(t5[3])
+            tap(btnxy[0],btnxy[1],readonly)
+            wait3(waitingtime,"等待动画")
+        else:
+            gameover0 += 1
+            twarn("第 "+str(gameover)+" 次战斗结束： BOSS战： 失败。")
+            twarn("警告：战斗败北，已自动停止")
+            quit()
+    prevmode = modeid
